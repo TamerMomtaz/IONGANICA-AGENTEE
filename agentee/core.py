@@ -191,7 +191,18 @@ class AGentee:
                 context_prompt = ""
                 if self.memory:
                     context_prompt = self.memory.build_context_prompt(max_conversations=3)
-                
+                # ── VOICE INPUT ──
+                if query.strip().lower() == 'v':
+                    if self.ear and self.ear.available and self.ear.whisper_available:
+                        transcript = await self.ear.push_to_talk()
+                        if transcript:
+                            query = transcript
+                        else:
+                            print("    🔇 Didn't catch that. Try 'v' again.")
+                            continue
+                    else:
+                        print("    ⚠️ Voice not ready")
+                        continue
                 # Process with Mind (v4.2 uses think(), not process())
                 response = await self.mind.think(query)
                 
