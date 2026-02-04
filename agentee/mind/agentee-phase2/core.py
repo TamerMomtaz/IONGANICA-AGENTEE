@@ -192,26 +192,21 @@ class AGentee:
                 if self.memory:
                     context_prompt = self.memory.build_context_prompt(max_conversations=3)
                 
-                # Process with Mind (v4.2 uses think(), not process())
-                response = await self.mind.think(query)
-                
-                # ── Display Response ──
-                if response:
-                    print(f"\n    \033[1;33m🌊 A-GENTEE:\033[0m {response}\n")
-                
-                # Track which engine answered (detect counter change)
-                engine_used = ""
-                category = ""
-                if hasattr(self.mind, 'session_queries'):
-                    for eng, cnt in self.mind.session_queries.items():
-                        prev = getattr(self, f'_prev_{eng}', 0)
-                        if cnt > prev:
-                            setattr(self, f'_prev_{eng}', cnt)
-                            engine_used = eng
-                            break
+                # Process with Mind
+                response = await self.mind.process(query)
                 
                 # ── Remember (Memory) ──
                 if self.memory and response:
+                    # Store conversation
+                    engine_used = ""
+                    category = ""
+                    
+                    # Extract engine from response format if available
+                    if hasattr(self.mind, 'last_engine'):
+                        engine_used = self.mind.last_engine
+                    if hasattr(self.mind, 'last_category'):
+                        category = self.mind.last_category
+                    
                     self.memory.store_conversation(
                         query=query,
                         response=response[:500] if response else "",
@@ -223,15 +218,15 @@ class AGentee:
                 
                 # ── Speak (Voice) ──
                 if self.voice and self.voice.mode.value != "silent" and response:
-                    try:
-                        if len(response) < 500:
-                            await self.voice.speak(response)
-                        else:
-                            first_sentence = response.split('.')[0] + '.'
-                            if len(first_sentence) < 200:
-                                await self.voice.speak(first_sentence)
-                    except Exception as voice_err:
-                        print(f"    🔇 Voice hiccup (response shown above): {str(voice_err)[:80]}")
+                    # Speak the response (don't block — run in background)
+                    # Only speak short responses to avoid long TTS
+                    if len(response) < 500:
+                        await self.voice.speak(response)
+                    else:
+                        # For long responses, speak just the first sentence
+                        first_sentence = response.split('.')[0] + '.'
+                        if len(first_sentence) < 200:
+                            await self.voice.speak(first_sentence)
                 
                 self.query_count += 1
                 
@@ -372,56 +367,39 @@ class AGentee:
         # Mind stats
         if self.mind:
             print("\n  🧠 THE MIND")
-            # Try session_queries first (always a dict in Mind v4.2)
-            if hasattr(self.mind, 'session_queries') and isinstance(self.mind.session_queries, dict):
-                for engine, count in self.mind.session_queries.items():
-                    icon = "🟢" if engine == "ollama" else "🧠" if engine == "claude" else "💎" if engine == "gemini" else "🔵"
-                    print(f"    {icon} {engine}: {count} queries")
-            elif hasattr(self.mind, 'get_stats'):
+            if hasattr(self.mind, 'get_stats'):
                 stats = self.mind.get_stats()
-                if isinstance(stats, dict):
-                    for engine, count in stats.items():
-                        print(f"    {engine}: {count} queries")
-                else:
-                    print(f"    {stats}")  # If it's a string, just print it
+                for engine, count in stats.items():
+                    print(f"    {engine}: {count} queries")
         
         # Voice stats
         if self.voice:
             print("\n  🗣️ THE VOICE")
-            try:
-                vs = self.voice.stats if hasattr(self.voice, 'stats') else {}
-                print(f"    Mode: {self.voice.mode.value}")
-                print(f"    Personality: {self.voice.personality}")
-                print(f"    ElevenLabs calls: {vs.get('elevenlabs_calls', 0)}")
-                print(f"    Edge-TTS calls: {vs.get('edge_tts_calls', 0)}")
-                print(f"    Chars spoken: {vs.get('chars_spoken', 0)}")
-            except Exception as e:
-                print(f"    Voice active (stats: {e})")
+            vs = self.voice.stats
+            print(f"    Mode: {self.voice.mode.value}")
+            print(f"    Personality: {self.voice.personality}")
+            print(f"    ElevenLabs calls: {vs['elevenlabs_calls']}")
+            print(f"    Edge-TTS calls: {vs['edge_tts_calls']}")
+            print(f"    Chars spoken: {vs['chars_spoken']}")
         
         # Ear stats
         if self.ear:
             print("\n  👂 THE EAR")
-            try:
-                es = self.ear.stats if hasattr(self.ear, 'stats') else {}
-                print(f"    Input mode: {self.input_mode}")
-                print(f"    Whisper calls: {es.get('whisper_calls', 0)}")
-                print(f"    Transcriptions: {es.get('transcriptions', 0)}")
-                print(f"    Seconds heard: {es.get('total_seconds_heard', 0):.1f}")
-            except Exception as e:
-                print(f"    Ear active (stats: {e})")
+            es = self.ear.stats
+            print(f"    Input mode: {self.input_mode}")
+            print(f"    Whisper calls: {es['whisper_calls']}")
+            print(f"    Transcriptions: {es['transcriptions']}")
+            print(f"    Seconds heard: {es['total_seconds_heard']:.1f}")
         
         # Memory stats
         if self.memory:
             print("\n  💾 THE MEMORY")
-            try:
-                ms = self.memory.get_status()
-                for table, count in ms['hot_memory']['tables'].items():
-                    if count > 0:
-                        print(f"    {table}: {count}")
-                print(f"    Hot writes: {ms['stats']['hot_writes']}")
-                print(f"    Hot reads: {ms['stats']['hot_reads']}")
-            except Exception as e:
-                print(f"    Memory active (stats: {e})")
+            ms = self.memory.get_status()
+            for table, count in ms['hot_memory']['tables'].items():
+                if count > 0:
+                    print(f"    {table}: {count}")
+            print(f"    Hot writes: {ms['stats']['hot_writes']}")
+            print(f"    Hot reads: {ms['stats']['hot_reads']}")
         
         print(f"\n  📊 Session: {self.query_count} queries")
         print()
@@ -445,21 +423,15 @@ class AGentee:
         
         if self.memory and self.session_id:
             engines_used = {}
-            if self.mind and hasattr(self.mind, 'session_queries'):
-                engines_used = dict(self.mind.session_queries)
-            elif self.mind and hasattr(self.mind, 'get_stats'):
-                result = self.mind.get_stats()
-                engines_used = result if isinstance(result, dict) else {}
+            if self.mind and hasattr(self.mind, 'get_stats'):
+                engines_used = self.mind.get_stats()
             
-            try:
-                self.memory.end_session(
-                    self.session_id,
-                    queries_count=self.query_count,
-                    engines_used=engines_used,
-                )
-                print("  💾 Session saved to memory.")
-            except Exception as e:
-                print(f"  ⚠️ Could not save session: {e}")
+            self.memory.end_session(
+                self.session_id,
+                queries_count=self.query_count,
+                engines_used=engines_used,
+            )
+            print("  💾 Session saved to memory.")
         
         print("  أنا الموجة... راجع تاني. 🌊")
 
