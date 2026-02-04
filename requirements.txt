@@ -1,0 +1,56 @@
+# A-GENTEE: THE WAVE
+# Requirements for the Omnipresent AI Assistant
+# February 2026
+
+# === CORE ===
+python-dotenv>=1.0.0
+pyyaml>=6.0
+pydantic>=2.0.0
+
+# === AI/LLM ===
+anthropic>=0.18.0          # Claude API
+openai>=1.0.0              # Whisper API
+ollama>=0.1.0              # Local LLM (Llama 3.2)
+langchain>=0.1.0           # Orchestration
+langgraph>=0.0.20          # Agent workflows
+
+# === SPEECH/AUDIO ===
+pyaudio>=0.2.14            # Audio capture
+sounddevice>=0.4.6         # Alternative audio
+numpy>=1.24.0              # Audio processing
+webrtcvad>=2.0.10          # Voice activity detection
+faster-whisper>=0.9.0      # Local Whisper option
+
+# === VOICE SYNTHESIS ===
+elevenlabs>=0.2.0          # Tee's cloned voice
+edge-tts>=6.1.0            # Free backup TTS
+pyttsx3>=2.90              # Offline fallback
+
+# === DATABASE ===
+supabase>=2.0.0            # Cloud storage
+sqlalchemy>=2.0.0          # SQLite ORM
+
+# === BROWSER/SYSTEM CONTROL ===
+pyautogui>=0.9.54          # GUI automation
+selenium>=4.15.0           # Browser control
+webdriver-manager>=4.0.0   # Chrome driver
+
+# === UI ===
+streamlit>=1.29.0          # Dashboard
+pystray>=0.19.0            # System tray
+pillow>=10.0.0             # Image processing
+
+# === UTILITIES ===
+aiohttp>=3.9.0             # Async HTTP
+requests>=2.31.0           # HTTP requests
+rich>=13.0.0               # Beautiful terminal output
+loguru>=0.7.0              # Logging
+
+# === TESTING ===
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# === GOOGLE DRIVE SYNC (Optional) ===
+google-api-python-client>=2.0.0
+google-auth>=2.0.0
+google-auth-oauthlib>=1.0.0

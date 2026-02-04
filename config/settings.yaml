@@ -1,0 +1,308 @@
+# A-GENTEE Configuration
+# The Wave - Always Present, Always Listening
+
+# ============================================
+# IDENTITY
+# ============================================
+identity:
+  name: "A-GENTEE"
+  alias: "The Wave"
+  version: "1.0.0"
+  creator: "Tamer Momtaz (Tee)"
+  philosophy: "&I - AI + Human, not AI instead of Human"
+
+# ============================================
+# API KEYS (Use environment variables in production)
+# ============================================
+api_keys:
+  claude: "${ANTHROPIC_API_KEY}"
+  elevenlabs: "${ELEVENLABS_API_KEY}"
+  openai: "${OPENAI_API_KEY}"  # For Whisper
+
+# ============================================
+# SUPABASE
+# ============================================
+supabase:
+  url: "${SUPABASE_URL}"
+  anon_key: "${SUPABASE_ANON_KEY}"
+  service_key: "${SUPABASE_SERVICE_KEY}"  # For admin ops
+
+# ============================================
+# THE EAR (Perception Layer)
+# ============================================
+ear:
+  # Primary transcription service
+  primary_service: "whisper"  # whisper, speechify, local
+  
+  # Wake words
+  wake_words:
+    - "a-gentee"
+    - "agentee"
+    - "hey wave"
+    - "يا موجة"  # Arabic: "ya mawga"
+  
+  # Continuous listening settings
+  continuous_mode:
+    enabled: true
+    chunk_duration_seconds: 5
+    silence_threshold: 0.01
+    language_detection: true
+  
+  # Supported languages
+  languages:
+    - code: "ar"
+      name: "Arabic"
+      variants: ["Egyptian", "Lebanese", "Standard"]
+    - code: "en"
+      name: "English"
+      variants: ["General"]
+  
+  # Whisper settings
+  whisper:
+    model: "whisper-1"
+    language: null  # Auto-detect
+    temperature: 0
+  
+  # Local Whisper (faster-whisper)
+  local_whisper:
+    model_size: "base"  # tiny, base, small, medium, large
+    device: "auto"  # cpu, cuda, auto
+
+# ============================================
+# THE MIND (Processing Layer)
+# ============================================
+mind:
+  # Default model for complex tasks
+  default_model: "claude"
+  
+  # Model configurations
+  models:
+    claude:
+      model_id: "claude-sonnet-4-20250514"
+      max_tokens: 4096
+      temperature: 0.7
+      
+    ollama:
+      model_id: "llama3.2"
+      base_url: "http://localhost:11434"
+      
+    gemini:
+      model_id: "gemini-pro"
+  
+  # Routing rules
+  routing:
+    # Creative tasks → Claude
+    creative:
+      keywords: ["lyrics", "write", "poem", "story", "arabic", "creative"]
+      model: "claude"
+      
+    # Quick tasks → Ollama (free)
+    quick:
+      keywords: ["open", "what time", "simple", "quick"]
+      model: "ollama"
+      
+    # Data tasks → Gemini
+    data:
+      keywords: ["analyze", "data", "numbers", "research", "summarize"]
+      model: "gemini"
+      
+    # Code tasks
+    code:
+      keywords: ["code", "debug", "fix", "program", "script"]
+      model: "claude"  # Complex code
+      fallback: "ollama"  # Simple fixes
+  
+  # Cost limits
+  costs:
+    daily_limit_usd: 5.00
+    per_query_limit_usd: 0.50
+    alert_threshold: 0.80  # Alert at 80%
+
+# ============================================
+# THE VOICE (Output Layer)
+# ============================================
+voice:
+  # Primary voice service
+  primary_service: "elevenlabs"
+  
+  # Tee's cloned voice on ElevenLabs
+  elevenlabs:
+    voice_id: "${ELEVENLABS_VOICE_ID}"
+    model_id: "eleven_multilingual_v2"
+    stability: 0.5
+    similarity_boost: 0.8
+  
+  # Voice modes
+  modes:
+    default:
+      style: "conversational"
+      speed: 1.0
+    kahotia:
+      style: "mysterious"
+      speed: 0.9
+    professional:
+      style: "formal"
+      speed: 1.1
+    creative:
+      style: "expressive"
+      speed: 0.95
+  
+  # Fallback options
+  fallback:
+    edge_tts:
+      voice: "en-US-GuyNeural"
+      rate: "+0%"
+    pyttsx3:
+      rate: 150
+      volume: 0.9
+
+# ============================================
+# THE HANDS (Action Layer)
+# ============================================
+hands:
+  # Enabled actions
+  enabled_actions:
+    - open_website
+    - open_application
+    - file_operations
+    - send_notification
+    - spawn_agent
+    
+  # Restricted actions (require confirmation)
+  restricted_actions:
+    - code_modification
+    - system_settings
+    - delete_files
+    - financial_actions
+  
+  # Website shortcuts
+  website_shortcuts:
+    claude: "https://claude.ai"
+    chatgpt: "https://chat.openai.com"
+    github: "https://github.com/TamerMomtaz"
+    supabase: "https://supabase.com/dashboard"
+    railway: "https://railway.app/dashboard"
+    rootrise: "https://rootrise.devoneers.com"
+    bookoftee: "https://tamermomtaz.github.io/BookOfTee/kahotia_alive.html"
+    frd: "https://frd.devoneers.com"
+    mswd: "https://made-samar-writes-dream.vercel.app/"
+  
+  # Application paths (OS-specific)
+  applications:
+    vscode: "code"
+    chrome: "google-chrome"
+    terminal: "gnome-terminal"
+
+# ============================================
+# THE MEMORY (Storage Layer)
+# ============================================
+memory:
+  # Hot memory (local SQLite)
+  hot:
+    database_path: "data/local_memory.db"
+    max_entries: 10000
+    retention_hours: 24
+  
+  # Cold memory (Supabase)
+  cold:
+    sync_interval_minutes: 5
+    enabled: true
+  
+  # Memory categories
+  categories:
+    - conversations
+    - ideas
+    - patterns
+    - preferences
+    - qa_logs
+    - spawned_agents
+
+# ============================================
+# THE EYE (Quality Assurance)
+# ============================================
+eye:
+  # Products to monitor
+  products:
+    - name: "RootRise"
+      type: "platform"
+      checks: ["agent_responses", "transformation_quality"]
+      
+    - name: "BookOfTee"
+      type: "personal"
+      checks: ["kahotia_consistency", "memory_integrity"]
+      
+    - name: "MSWD"
+      type: "tool"
+      checks: ["transcription_accuracy", "export_quality"]
+      
+    - name: "FRD"
+      type: "dashboard"
+      checks: ["opportunity_scoring", "data_freshness"]
+  
+  # Quality thresholds
+  thresholds:
+    minimum_score: 0.8
+    warning_score: 0.9
+    excellent_score: 0.95
+  
+  # Check frequency
+  check_interval_minutes: 30
+
+# ============================================
+# THE FACTORY (Agent Spawning)
+# ============================================
+factory:
+  # Maximum concurrent agents
+  max_agents: 10
+  
+  # Default agent templates
+  templates:
+    task_executor:
+      lifespan: "task_complete"
+      cost_limit: 0.10
+      
+    creative_muse:
+      lifespan: "session"
+      cost_limit: 0.50
+      
+    research_hunter:
+      lifespan: "task_complete"
+      cost_limit: 0.30
+      
+    quality_checker:
+      lifespan: "persistent"
+      cost_limit: 0.20
+
+# ============================================
+# WAVE VISUALIZATION
+# ============================================
+wave:
+  # Visual settings
+  color_idle: "#00F0FF"      # Cyan
+  color_active: "#FF00FF"    # Magenta
+  color_alert: "#FF0000"     # Red
+  
+  # Animation
+  frequency_idle: 0.5        # Hz
+  frequency_active: 2.0      # Hz
+  amplitude_idle: 0.3
+  amplitude_active: 1.0
+
+# ============================================
+# LOGGING
+# ============================================
+logging:
+  level: "INFO"
+  format: "{time} | {level} | {message}"
+  file: "data/logs/agentee.log"
+  rotation: "1 day"
+  retention: "7 days"
+
+# ============================================
+# DAEMON SETTINGS
+# ============================================
+daemon:
+  enabled: true
+  auto_start: true
+  restart_on_crash: true
+  health_check_interval: 60

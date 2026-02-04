@@ -1,0 +1,23 @@
+﻿# Virtual environment
+venv/
+
+# API keys - NEVER push
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Local data
+data/local_memory.db
+data/logs/
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
