@@ -1,56 +1,37 @@
-# A-GENTEE: THE WAVE
-# Requirements for the Omnipresent AI Assistant
-# February 2026
+# ═══════════════════════════════════════════════════════════════
+# 🌊 A-GENTEE v5.1 — THE WAVE — Dependencies
+# Updated: February 5, 2026
+# Python: 3.12+ recommended (3.14 beta works but has quirks)
+# ═══════════════════════════════════════════════════════════════
 
-# === CORE ===
-python-dotenv>=1.0.0
-pyyaml>=6.0
-pydantic>=2.0.0
+# ── THE MIND (4-engine ensemble) ──
+anthropic>=0.40.0          # Claude API — deep reasoning, Arabic, creative
+openai>=1.0.0              # OpenAI GPT + Whisper transcription API
+google-genai>=1.0.0        # Gemini (NEW SDK — replaces deprecated google-generativeai)
+ollama>=0.4.0              # Local LLM (Ollama must be running: ollama serve)
 
-# === AI/LLM ===
-anthropic>=0.18.0          # Claude API
-openai>=1.0.0              # Whisper API
-ollama>=0.1.0              # Local LLM (Llama 3.2)
-langchain>=0.1.0           # Orchestration
-langgraph>=0.0.20          # Agent workflows
+# ── THE VOICE (3-tier output) ──
+elevenlabs>=1.0.0          # Tier 1: Tee's cloned voice (premium)
+edge-tts>=6.1.0            # Tier 2: Free Microsoft neural voices
+# pyttsx3                  # Tier 3: Offline fallback — optional, uncomment if needed
 
-# === SPEECH/AUDIO ===
-pyaudio>=0.2.14            # Audio capture
-sounddevice>=0.4.6         # Alternative audio
-numpy>=1.24.0              # Audio processing
-webrtcvad>=2.0.10          # Voice activity detection
-faster-whisper>=0.9.0      # Local Whisper option
+# ── THE EAR (perception layer) ──
+sounddevice>=0.4.6         # Microphone capture (works on Python 3.14, unlike PyAudio)
+numpy>=1.26.0              # Audio processing for sounddevice
+# NOTE: Whisper transcription uses the 'openai' package above
 
-# === VOICE SYNTHESIS ===
-elevenlabs>=0.2.0          # Tee's cloned voice
-edge-tts>=6.1.0            # Free backup TTS
-pyttsx3>=2.90              # Offline fallback
+# ── THE MEMORY (2-tier storage) ──
+httpx>=0.27.0              # Supabase REST API client (cold memory)
+# supabase                 # Full SDK — needs C++ Build Tools, httpx works fine instead
 
-# === DATABASE ===
-supabase>=2.0.0            # Cloud storage
-sqlalchemy>=2.0.0          # SQLite ORM
+# ── CORE UTILITIES ──
+python-dotenv>=1.0.0       # Load .env API keys
+pyyaml>=6.0                # Configuration files (settings.yaml)
+pydantic>=2.0.0            # Data validation
+aiohttp>=3.9.0             # Async HTTP client
+requests>=2.31.0           # Sync HTTP client
 
-# === BROWSER/SYSTEM CONTROL ===
-pyautogui>=0.9.54          # GUI automation
-selenium>=4.15.0           # Browser control
-webdriver-manager>=4.0.0   # Chrome driver
-
-# === UI ===
-streamlit>=1.29.0          # Dashboard
-pystray>=0.19.0            # System tray
-pillow>=10.0.0             # Image processing
-
-# === UTILITIES ===
-aiohttp>=3.9.0             # Async HTTP
-requests>=2.31.0           # HTTP requests
-rich>=13.0.0               # Beautiful terminal output
-loguru>=0.7.0              # Logging
-
-# === TESTING ===
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-
-# === GOOGLE DRIVE SYNC (Optional) ===
-google-api-python-client>=2.0.0
-google-auth>=2.0.0
-google-auth-oauthlib>=1.0.0
+# ── FUTURE / OPTIONAL ──
+# rich>=13.0.0             # Pretty terminal formatting
+# loguru>=0.7.0            # Advanced logging
+# streamlit>=1.30.0        # Dashboard UI (Phase 8)
