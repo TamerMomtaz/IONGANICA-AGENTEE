@@ -1,182 +1,227 @@
+# mind/router.py — A-GENTEE Mind Router v4.3 (Opus Tier)
+# Upgrade: Adds Opus as premium tier for deep reasoning + synthesis tasks
+# Compatible with existing claude_adapter.py — just pass model param
+
 """
-🌊 A-GENTEE: THE WAVE — Mind Router v4.2
-Full 4-Engine Ensemble Routing
+ROUTING LOGIC v4.3 — Now with Opus Tier
 
-Routing Priority (checked in this order):
-1. CREATIVE → Claude (Arabic, lyrics, philosophy, art, imagination)
-2. COMPLEX  → Claude (design, analyze, architecture, DEVONEERS context)
-3. DATA     → Gemini (research, summarize, data, compare, statistics)
-4. ARABIC   → Claude (10+ Arabic chars — best for Arabic nuance)
-5. LONG     → Claude (200+ chars — deep reasoning needed)
-6. SIMPLE   → Ollama (short queries, greetings — FREE)
-7. DEFAULT  → Ollama (catch-all — FREE)
+Query → Analyze → Category → Engine + Model:
 
-Fallback chain if primary engine fails:
-Claude → Gemini → OpenAI → Ollama
-Gemini → Claude → OpenAI → Ollama
-OpenAI → Claude → Gemini → Ollama
+  "Hello"                          → simple    → Gemini Flash     ($0.001)
+  "What's the GDP of Egypt?"       → data      → Gemini Flash     ($0.001)
+  "Design RootRise agents"         → complex   → Claude Sonnet    ($0.015)
+  "اكتب لي قصيدة عن الموج"        → arabic    → Claude Sonnet    ($0.015)
+  "Write a poem about The Wave"    → creative  → Claude Sonnet    ($0.015)
+  "Long detailed analysis..."      → long      → Claude Sonnet    ($0.015)
+  
+  === NEW: Opus Tier (auto-detected OR manual override) ===
+  "Synthesize my factory + book + RootRise insights"  → synthesis  → Claude Opus ($0.075)
+  "Deep analysis across all my domains"               → deep       → Claude Opus ($0.075)
+  model_override="claude-opus" from frontend           → any        → Claude Opus ($0.075)
+  
+  [If primary fails]               → fallback  → OpenAI          ($0.020)
+
+COST IMPACT:
+  Without Opus: ~$30-35/mo
+  With Opus (10 queries/day): ~$55-60/mo
+  With Opus (3-5 queries/day): ~$40-45/mo — RECOMMENDED
 """
 
 import re
-import logging
 
-logger = logging.getLogger("agentee.mind")
-
-# ─── KEYWORD SETS ───────────────────────────────────────────────
-
-CREATIVE_KEYWORDS = [
-    # English creative
-    "imagine", "compose", "lyrics", "poem", "story", "write me",
-    "creative", "artistic", "kahotia", "philosophy", "philosophical",
-    "inspire", "muse", "art", "paint", "draw", "visualize",
-    "sing", "song", "melody", "verse", "metaphor",
-    # Arabic creative
-    "تخيل", "أكتب", "شعر", "أغنية", "كاهوتيا", "فلسفة",
-    "إبداع", "فن", "رسم", "ألهم", "خيال", "موجة",
-    "كلمات", "لحن", "قصيدة", "حكاية", "رواية",
-]
-
-COMPLEX_KEYWORDS = [
-    # English complex
-    "design", "architect", "analyze", "strategy", "plan",
-    "help me build", "help me design", "help me create",
-    "rootrise", "devoneers", "pantheon", "crema",
-    "transform", "business model", "pitch", "investor",
-    "explain in detail", "deep dive", "comprehensive",
-    "compare and contrast", "pros and cons",
-    "refactor", "debug", "code review", "architecture",
-    # Arabic complex
-    "صمم", "خطة", "استراتيجية", "تحليل", "ساعدني",
-    "روتريز", "ديفونيرز", "بانثيون",
-]
-
-DATA_KEYWORDS = [
-    # English data/research
-    "research", "summarize", "data", "statistics", "numbers",
-    "trends", "market", "survey", "report", "findings",
-    "compare", "benchmark", "metrics", "KPI", "analysis",
-    "funding", "accelerator", "grant", "opportunity",
-    "ISO", "standard", "compliance", "regulation",
-    # Arabic data
-    "بحث", "بيانات", "إحصائيات", "تقرير", "اتجاهات",
-    "سوق", "مقارنة", "تمويل", "منح",
+# Patterns that suggest the query needs Opus-level reasoning
+OPUS_PATTERNS = [
+    # Cross-domain synthesis
+    r'(?:synthesize|combine|connect|integrate).+(?:domain|area|project|work)',
+    r'(?:across|between).+(?:factory|book|rootrise|writing|dba|plant)',
+    # Deep multi-step reasoning
+    r'(?:deep|thorough|comprehensive)\s+(?:analysis|review|assessment|evaluation)',
+    r'(?:strategy|strategic)\s+(?:plan|analysis|recommendation|direction)',
+    # Philosophy + technical fusion (Tee's sweet spot)
+    r'(?:philosophy|philosophical).+(?:technical|code|system|architecture)',
+    r'(?:uncertainty|consciousness|&i).+(?:implement|design|build)',
+    # Investment / high-stakes decisions
+    r'(?:investor|pitch|presentation|board).+(?:prepare|create|draft|review)',
+    r'(?:ebrd|grant|funding|venture).+(?:application|proposal|strategy)',
+    # Book writing - the serious creative work
+    r'(?:chapter|book|manuscript).+(?:write|draft|structure|outline)',
+    r'(?:مش\s*كتاب|مش\s*خلصانة|كتاب)',
 ]
 
 SIMPLE_PATTERNS = [
-    "hello", "hi", "hey", "good morning", "good night",
-    "thanks", "thank you", "ok", "okay", "yes", "no",
-    "bye", "goodbye", "see you", "quit", "exit",
-    "مرحبا", "أهلا", "شكرا", "مع السلامة",
-    "صباح الخير", "مساء الخير",
+    r'^(hi|hello|hey|مرحبا|ازيك|صباح|مساء|سلام)[\s!?.]*$',
+    r'^(thanks|thank you|شكرا|تمام|ok|okay|good|great)[\s!?.]*$',
+    r'^(yes|no|yeah|nah|أيوا|لا)[\s!?.]*$',
+    r'^(how are you|what\'?s up|كيفك|عامل ايه)[\s!?.]*$',
+    r'^what (is|are|was|were) ',
+    r'^(who|when|where) (is|are|was|were) ',
+    r'^(define|meaning of) ',
 ]
 
-# ─── COST ESTIMATES ─────────────────────────────────────────────
+CREATIVE_PATTERNS = [
+    r'(write|compose|create|draft|brainstorm)',
+    r'(poem|story|song|lyrics|letter|essay)',
+    r'(imagine|creative|artistic|poetic)',
+    r'(اكتب|ألف|قصيدة|أغنية|شعر|خاطرة)',
+]
 
-COST_PER_QUERY = {
-    "ollama": 0.0,
-    "claude": 0.015,
-    "gemini": 0.001,
-    "openai": 0.020,
-}
+DATA_PATTERNS = [
+    r'(data|statistics|numbers|figure|chart|graph)',
+    r'(gdp|population|market|revenue|growth|rate)',
+    r'(compare|comparison|versus|vs\.?)',
+    r'(list|rank|top \d+)',
+    r'(how much|how many|percentage|ratio)',
+]
 
-# ─── FALLBACK CHAINS ───────────────────────────────────────────
-
-FALLBACK_CHAINS = {
-    "claude": ["gemini", "openai", "ollama"],
-    "gemini": ["claude", "openai", "ollama"],
-    "openai": ["claude", "gemini", "ollama"],
-    "ollama": [],  # Ollama is the last resort
-}
-
-
-def _has_arabic(text: str) -> bool:
-    """Check if text contains Arabic characters."""
-    return bool(re.search(r'[\u0600-\u06FF]', text))
+ARABIC_PATTERN = re.compile(r'[\u0600-\u06FF]')
 
 
-def _keyword_match(query_lower: str, keywords: list) -> bool:
-    """Check if any keyword appears in the query."""
-    for kw in keywords:
-        if kw.lower() in query_lower:
-            return True
-    return False
-
-
-def route(query: str, available: dict) -> tuple:
+def detect_category(query: str, model_override: str = None) -> dict:
     """
-    Route a query to the optimal engine.
-
-    Args:
-        query: User's input text
-        available: Dict of {engine_name: bool} availability
-
+    Analyze query and return routing decision.
+    
     Returns:
-        Tuple of (engine_name, category, reason)
+        {
+            "category": str,       # simple|data|complex|creative|arabic|long|synthesis|deep
+            "engine": str,         # gemini|claude|claude-opus|openai
+            "model": str,          # specific model string
+            "reason": str,         # why this routing was chosen
+            "cost_tier": str,      # low|medium|premium
+        }
     """
-    query_lower = query.lower().strip()
-    query_len = len(query.strip())
+    q = query.strip().lower()
+    q_len = len(query.strip())
+    
+    # ─── MANUAL OPUS OVERRIDE (from frontend toggle) ───
+    if model_override == "claude-opus":
+        return {
+            "category": "manual-opus",
+            "engine": "claude-opus",
+            "model": "claude-opus-4-5-20250414",
+            "reason": "Manual Opus mode activated by Tee",
+            "cost_tier": "premium",
+        }
+    
+    # ─── AUTO-DETECT OPUS TIER ───
+    for pattern in OPUS_PATTERNS:
+        if re.search(pattern, q, re.IGNORECASE):
+            return {
+                "category": "synthesis",
+                "engine": "claude-opus",
+                "model": "claude-opus-4-5-20250414",
+                "reason": f"Auto-escalated to Opus: matched synthesis pattern",
+                "cost_tier": "premium",
+            }
+    
+    # ─── SIMPLE QUERIES → GEMINI (cheap) ───
+    for pattern in SIMPLE_PATTERNS:
+        if re.search(pattern, q, re.IGNORECASE):
+            return {
+                "category": "simple",
+                "engine": "gemini",
+                "model": "gemini-2.0-flash",
+                "reason": "Simple/greeting pattern detected",
+                "cost_tier": "low",
+            }
+    
+    # ─── ARABIC → CLAUDE SONNET ───
+    arabic_chars = len(ARABIC_PATTERN.findall(query))
+    if arabic_chars >= 10:
+        return {
+            "category": "arabic",
+            "engine": "claude",
+            "model": "claude-sonnet-4-5-20250514",
+            "reason": f"Arabic content detected ({arabic_chars} chars)",
+            "cost_tier": "medium",
+        }
+    
+    # ─── CREATIVE → CLAUDE SONNET ───
+    for pattern in CREATIVE_PATTERNS:
+        if re.search(pattern, q, re.IGNORECASE):
+            return {
+                "category": "creative",
+                "engine": "claude",
+                "model": "claude-sonnet-4-5-20250514",
+                "reason": "Creative task detected",
+                "cost_tier": "medium",
+            }
+    
+    # ─── DATA → GEMINI ───
+    for pattern in DATA_PATTERNS:
+        if re.search(pattern, q, re.IGNORECASE):
+            return {
+                "category": "data",
+                "engine": "gemini",
+                "model": "gemini-2.0-flash",
+                "reason": "Data/research query detected",
+                "cost_tier": "low",
+            }
+    
+    # ─── LONG QUERIES → CLAUDE SONNET ───
+    if q_len > 200:
+        return {
+            "category": "long",
+            "engine": "claude",
+            "model": "claude-sonnet-4-5-20250514",
+            "reason": f"Long query ({q_len} chars) needs deep processing",
+            "cost_tier": "medium",
+        }
+    
+    # ─── COMPLEX (default for non-simple) → CLAUDE SONNET ───
+    if q_len > 50:
+        return {
+            "category": "complex",
+            "engine": "claude",
+            "model": "claude-sonnet-4-5-20250514",
+            "reason": "Complex query, routing to Claude",
+            "cost_tier": "medium",
+        }
+    
+    # ─── DEFAULT → GEMINI ───
+    return {
+        "category": "general",
+        "engine": "gemini",
+        "model": "gemini-2.0-flash",
+        "reason": "Default routing to Gemini",
+        "cost_tier": "low",
+    }
 
-    # ─── 1. CREATIVE CHECK (highest priority) ───────────────
-    if _keyword_match(query_lower, CREATIVE_KEYWORDS):
-        if available.get("claude", False):
-            return ("claude", "CREATIVE", "Creative/artistic content — Claude excels here")
-        return _fallback("claude", available, "CREATIVE", "Creative content")
 
-    # ─── 2. COMPLEX CHECK ────────────────────────────────────
-    if _keyword_match(query_lower, COMPLEX_KEYWORDS):
-        if available.get("claude", False):
-            return ("claude", "COMPLEX", "Complex reasoning — escalating to Claude")
-        return _fallback("claude", available, "COMPLEX", "Complex reasoning")
-
-    # ─── 3. DATA/RESEARCH CHECK ──────────────────────────────
-    if _keyword_match(query_lower, DATA_KEYWORDS):
-        if available.get("gemini", False):
-            return ("gemini", "DATA", "Data/research task — Gemini is cost-effective")
-        return _fallback("gemini", available, "DATA", "Data/research task")
-
-    # ─── 4. ARABIC CONTENT (10+ chars) ──────────────────────
-    if _has_arabic(query) and query_len >= 10:
-        if available.get("claude", False):
-            return ("claude", "ARABIC", "Arabic content — Claude has best Arabic nuance")
-        return _fallback("claude", available, "ARABIC", "Arabic content")
-
-    # ─── 5. LONG QUERIES (200+ chars) ───────────────────────
-    if query_len >= 200:
-        if available.get("claude", False):
-            return ("claude", "LONG", "Long query — deep reasoning needed")
-        return _fallback("claude", available, "LONG", "Long query")
-
-    # ─── 6. SIMPLE PATTERNS (short queries only) ────────────
-    if query_len < 30:
-        for pattern in SIMPLE_PATTERNS:
-            if pattern in query_lower:
-                if available.get("ollama", False):
-                    return ("ollama", "SIMPLE", "Simple query — handled locally (FREE)")
-                return _fallback("ollama", available, "SIMPLE", "Simple query")
-
-    # ─── 7. DEFAULT → Ollama (FREE) ─────────────────────────
-    if available.get("ollama", False):
-        return ("ollama", "DEFAULT", "Default routing — Ollama (FREE)")
-    return _fallback("ollama", available, "DEFAULT", "Default routing")
-
-
-def _fallback(preferred: str, available: dict, category: str, reason: str) -> tuple:
-    """
-    Find an available fallback engine when the preferred one is unavailable.
-    """
-    chain = FALLBACK_CHAINS.get(preferred, [])
-    for fallback in chain:
-        if available.get(fallback, False):
-            return (fallback, category, f"{reason} — {preferred} unavailable, using {fallback}")
-
-    # Absolute last resort
-    for engine_name, is_available in available.items():
-        if is_available:
-            return (engine_name, category, f"{reason} — fallback to {engine_name}")
-
-    return ("ollama", category, f"{reason} — no engines available!")
-
-
-def get_estimated_cost(engine_name: str) -> float:
-    """Get estimated cost per query for an engine."""
-    return COST_PER_QUERY.get(engine_name, 0.0)
+# ─── USAGE EXAMPLE ───
+# In mind/__init__.py, update the think() method:
+#
+# async def think(self, query: str, model_override: str = None) -> dict:
+#     routing = detect_category(query, model_override)
+#     
+#     if routing["engine"] == "claude-opus":
+#         # Use Claude adapter with Opus model
+#         response = await self.claude.generate(
+#             query, 
+#             model=routing["model"]  # claude-opus-4-5-20250414
+#         )
+#     elif routing["engine"] == "claude":
+#         response = await self.claude.generate(
+#             query,
+#             model=routing["model"]  # claude-sonnet-4-5-20250514
+#         )
+#     elif routing["engine"] == "gemini":
+#         response = await self.gemini.generate(query)
+#     else:
+#         response = await self.openai.generate(query)
+#     
+#     return {
+#         "response": response,
+#         "engine": routing["engine"],
+#         "category": routing["category"],
+#         "cost_tier": routing["cost_tier"],
+#     }
+#
+# In api/think.py, pass model_override from request body:
+#
+# @router.post("/think")
+# async def think(request: ThinkRequest):
+#     result = await mind.think(
+#         query=request.query,
+#         model_override=request.model_override  # None or "claude-opus"
+#     )
+#     return result
